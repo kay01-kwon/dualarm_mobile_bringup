@@ -9,7 +9,7 @@ Go to the directory
 and then, in the sensor.launch file,
 
 modify like the following :
-
+"
 <?xml version="1.0"?>
 
 <launch>
@@ -35,5 +35,5 @@ modify like the following :
 -->
 
 </launch>
-
+"
 This modification would allow you to use only camera when you initiate the bringup.launch file.
