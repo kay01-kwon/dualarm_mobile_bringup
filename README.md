@@ -1,6 +1,16 @@
 Prerequisite pkg : dualarm_mobile_description
 
-If you want to use only camera, then follow the instruction.
+Launch procedure : 
+
+$ sudo ifconfig eth1 192.168.3.70
+
+$ sudo route add 192.168.1.202 eth1
+
+$ roslaunch velodyne_pointcloud VLP16_points.launch
+
+$ roslaunch dualarm_mobile_bringup bringup.launch
+
+If you want to use camera and velodyne without wheel odometry, then follow the instruction.
 
 Go to the directory 
 
