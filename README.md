@@ -8,7 +8,7 @@ Go to the directory
 
 and then, in the sensor.launch file,
 
-modify like the following in the <launch> tag:
+modify like the following in the launch tag:
 
 	
     <include file="$(find rplidar_ros)/launch/rplidar.launch" />
