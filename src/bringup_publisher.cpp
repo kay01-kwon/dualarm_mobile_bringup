@@ -1,8 +1,7 @@
 #include <dualarm_mobile_bringup/publisher.h>
-
+#include <dualarm_mobile_bringup/attitude_estimator.hpp>
 int main(int argc, char **argv)
 {
-
   ros::init(argc, argv, "bring_publisher");
 
   ros::NodeHandle nh;
