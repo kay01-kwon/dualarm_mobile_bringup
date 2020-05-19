@@ -11,6 +11,7 @@ find_package(catkin REQUIRED COMPONENTS
 )
 
 catkin_package(
+  INCLUDE_DIRS include
   LIBRARIES 
     dualarm_mobile_bringup
   CATKIN_DEPENDS 
@@ -20,15 +21,6 @@ catkin_package(
     std_msgs
 )
 
-catkin_package(
-  INCLUDE_DIRS include
-  LIBRARIES dualarm_mobile_bringup
-  CATKIN_DEPENDS 
-    roscpp
-    geometry_msgs 
-    nav_msgs
-    tf
-)
 
 include_directories(
   include
