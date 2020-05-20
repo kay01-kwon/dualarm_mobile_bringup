@@ -110,11 +110,11 @@ int main(int argc, char **argv)
       tf::StampedTransform(
     	tf::Transform(tf::Quaternion(tf::createQuaternionFromRPY(0.0, 0.0, -PI/2)), tf::Vector3(0.0, -0.3, 0.09)),
     	currentTime,"base_link", "base_sonar_right"));
-    }
+    } // eof if
       ros::spinOnce();
       loop_rate.sleep();
 
-  } //End while (ros::ok())
+  } //eof while (ros::ok())
 
   return 0;
 
