@@ -7,8 +7,7 @@
 #include <eigen3/Eigen/Dense>
 
 #include <vehicle_control/as5047Msg.h>
-#include <nav_msgs/Odometry.h
-
+#include <nav_msgs/Odometry.h>
 
 #define _USE_MATH_DEFINES
 
@@ -35,11 +34,19 @@ class attitude_estimator{
     void NormalVectorCalculation();
     void RollPitchCalculation();
     void PlatformCenterCalculation();
-    void TransformPublisher();
+    void RelativeInfo();
 
     MatrixXd Rotation_x(double &phi);
     MatrixXd Rotation_y(double &theta);
-    void BaseLinkPublish();
+
+    bool is_init = false;
+    
+    // b_p_target : target location w.r.t base footprint frame
+    VectorXd b_p_base_arm;
+    VectorXd b_p_camera_sensor;
+    VectorXd b_p_lidar_sensor;
+    // roll_pitch(0) : roll, roll_pitch(1) : pitch
+    VectorXd roll_pitch = VectorXd(2);
 
     private:
 
@@ -78,8 +85,6 @@ class attitude_estimator{
     Vector3d b_z_p;
     Vector3d p_z_p;
 
-    VectorXd roll_pitch = VectorXd(2);
-
     MatrixXd p_R_b = MatrixXd(3,3);
     MatrixXd b_R_p = MatrixXd(3,3);
 
@@ -94,10 +99,7 @@ class attitude_estimator{
     Vector3d p_p_camera_sensor;
     Vector3d p_p_lidar_sensor;
 
-    // b_p_target : target location w.r.t base footprint frame
-    VectorXd b_p_base_arm;
-    VectorXd b_p_camera_sensor;
-    VectorXd b_p_lidar_sensor;
+
 
     ros::NodeHandle nh;
     ros::Publisher BaseLinkPosePublisher;
@@ -128,7 +130,12 @@ void attitude_estimator::InitiateVariables()
 
     p_z_p << 0,0,1;
 
+    // 
     p_p_base_arm<<0,0,0.520;
+
+    p_p_camera_sensor<<0, 0, 0;
+
+    p_p_lidar_sensor<<0, 0, 0;
 
 }
 
@@ -144,6 +151,8 @@ void attitude_estimator::PublisherSetting()
 
 void attitude_estimator::EncoderCallbackFunc(const as5047Msg &mag_enc)
 {    
+    if(is_init == false)
+        is_init = true;
     // Encoder Data Acquisition
     for(int i = 0; i < num_joint;++i)
     {
@@ -245,7 +254,7 @@ void attitude_estimator::PlatformCenterCalculation()
     b_p_p = b_R_p * (-p_p_b); 
 }
 
-void attitude_estimator::TransformPublisher()
+void attitude_estimator::RelativeInfo()
 {
     WheelPosCalculation();
     NormalVectorCalculation();
@@ -253,9 +262,8 @@ void attitude_estimator::TransformPublisher()
     PlatformCenterCalculation();
 
     b_p_base_arm = b_p_p + b_R_p * p_p_base_arm;
-    cout<<b_p_base_arm<<endl;
-    cout<<endl;
-
+    //cout<<b_p_base_arm<<endl;
+    //cout<<endl;
 }
 
 MatrixXd attitude_estimator::Rotation_x(double &phi)
