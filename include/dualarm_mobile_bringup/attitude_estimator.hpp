@@ -44,7 +44,8 @@ class attitude_estimator{
     // b_p_target : target location w.r.t base footprint frame
     VectorXd b_p_base_arm;
     VectorXd b_p_camera_sensor;
-    VectorXd b_p_lidar_sensor;
+    VectorXd b_p_lidar_sensor1;
+    VectorXd b_p_lidar_sensor2;
     // roll_pitch(0) : roll, roll_pitch(1) : pitch
     VectorXd roll_pitch = VectorXd(2);
 
@@ -97,7 +98,8 @@ class attitude_estimator{
     // p_p_target : target location w.r.t platform center frame
     Vector3d p_p_base_arm;
     Vector3d p_p_camera_sensor;
-    Vector3d p_p_lidar_sensor;
+    Vector3d p_p_lidar_sensor1;
+    Vector3d p_p_lidar_sensor2;
 
 
 
@@ -131,11 +133,13 @@ void attitude_estimator::InitiateVariables()
     p_z_p << 0,0,1;
 
     // 
-    p_p_base_arm<<0,0,0.520;
+    p_p_base_arm<< 0, 0, 0.520;
 
-    p_p_camera_sensor<<0, 0, 0;
+    p_p_camera_sensor<< 0.290 + 0.00595, 0, 0.08290 + 0.39840;
 
-    p_p_lidar_sensor<<0, 0, 0;
+    p_p_lidar_sensor1<< 0.240, 0.235, 0.28540 + 0.03603;
+
+    p_p_lidar_sensor2 << -0.240, -0.235, 0.28540 + 0.03603;
 
 }
 
@@ -262,6 +266,9 @@ void attitude_estimator::RelativeInfo()
     PlatformCenterCalculation();
 
     b_p_base_arm = b_p_p + b_R_p * p_p_base_arm;
+    b_p_camera_sensor = b_p_p + b_R_p * p_p_camera_sensor;
+    b_p_lidar_sensor1 = b_p_p + b_R_p * p_p_lidar_sensor1;
+    b_p_lidar_sensor2 = b_p_p + b_R_p * p_p_lidar_sensor2;
     //cout<<b_p_base_arm<<endl;
     //cout<<endl;
 }
