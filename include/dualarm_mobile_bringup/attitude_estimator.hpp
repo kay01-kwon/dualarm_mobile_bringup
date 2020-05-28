@@ -7,7 +7,13 @@
 #include <eigen3/Eigen/Dense>
 
 #include <vehicle_control/as5047Msg.h>
+
+#include <geometry_msgs/Twist.h>
 #include <nav_msgs/Odometry.h>
+#include <std_msgs/Time.h>
+#include <tf/transform_broadcaster.h>
+#include <tf/transform_listener.h>
+#include <tf/transform_datatypes.h>
 
 #define _USE_MATH_DEFINES
 
@@ -22,10 +28,21 @@ using Eigen::Vector3d;
 using std::cout;
 using std::endl;
 
+int rate;
+
+std::string topic_name;
+
+tf::StampedTransform transform;
+
+nav_msgs::Odometry odom;
+
+ros::Time currentTime;
+
 class attitude_estimator{
 
     public:
-    
+
+    // Member functions
     void InitiateVariables();
     void EncoderSubscriberSetting();
     void PublisherSetting();
@@ -39,15 +56,26 @@ class attitude_estimator{
     MatrixXd Rotation_x(double &phi);
     MatrixXd Rotation_y(double &theta);
 
-    bool is_init = false;
+    // Variables to use in the cpp file
+
+    // Encoder data recieved --> is_subscription is switched to true
+    bool is_subscription = false;
     
-    // b_p_target : target location w.r.t base footprint frame
-    VectorXd b_p_base_arm;
-    VectorXd b_p_camera_sensor;
-    VectorXd b_p_lidar_sensor1;
-    VectorXd b_p_lidar_sensor2;
+    // Translation info.
+    Vector3d odom_to_camera_odom;
+    Vector3d camera_pose_to_base_footprint;
+    Vector3d base_footprint_to_base_link;
+    Vector3d base_link_to_Velodyne1;
+    Vector3d base_link_to_Velodyne2;
+    Vector3d base_link_to_base_arm;
+
     // roll_pitch(0) : roll, roll_pitch(1) : pitch
     VectorXd roll_pitch = VectorXd(2);
+
+    // p_q_b : quaternion from base(ground) to platform center ref frame
+    // b_q_p : quaternion from platform center ref frame to base
+    VectorXd p_q_b = VectorXd(4);
+    VectorXd b_q_p = VectorXd(4);
 
     private:
 
@@ -75,38 +103,35 @@ class attitude_estimator{
     VectorXd joint_angle_curr = VectorXd(num_joint);
     VectorXd joint_angle_rotation = VectorXd(num_joint);
 
-    // xyz : Link frame, XYZ : reference frame
     MatrixXd link_wheel_center_pos = MatrixXd(3,num_joint);
     MatrixXd p_wheel_center_pos = MatrixXd(3,num_joint);
 
+    // wheel gnd position w.r.t platform center frame aligned to the ground
+    MatrixXd b_p_wheel_gnd_pos = MatrixXd(3,num_joint);
+
     // p_z_b : z unit vector of base_footprint w.r.t platform center
-    // b_z_p : z unit vector of platform center w.r.t base footprint
-    
+    // b_z_p : z unit vector of platform center w.r.t base footprint    
     Vector3d p_z_b;
     Vector3d b_z_p;
     Vector3d p_z_p;
 
+    // Rotation transformation matrix
+    // p_R_b : base(ground) frame to platform center ref frame
+    // b_R_p : platform center ref frame to base frame 
     MatrixXd p_R_b = MatrixXd(3,3);
     MatrixXd b_R_p = MatrixXd(3,3);
 
-    // p_p_b : base footprint location w.r.t platform center frame
-    // b_p_p : platform center location w.r.t base footprint frame
-
-    Vector3d p_p_b;
+    // b_p_p : base_footprint location w.r.t platform center aligned to the ground
     Vector3d b_p_p;
 
-    // p_p_target : target location w.r.t platform center frame
-    Vector3d p_p_base_arm;
+    // p_p_target : target location w.r.t platform center ref frame
     Vector3d p_p_camera_sensor;
-    Vector3d p_p_lidar_sensor1;
-    Vector3d p_p_lidar_sensor2;
-
-
+    Vector3d p_p_Velodyne1;
+    Vector3d p_p_Velodyne2;
 
     ros::NodeHandle nh;
     ros::Publisher BaseLinkPosePublisher;
     ros::Subscriber Encoder_subscriber;
-
 
 };
 
@@ -132,15 +157,14 @@ void attitude_estimator::InitiateVariables()
 
     p_z_p << 0,0,1;
 
-    // 
-    p_p_base_arm<< 0, 0, 0.520;
+    base_link_to_base_arm<< 0, 0, 0.520;
 
     p_p_camera_sensor<< 0.290 + 0.00595, 0, 0.08290 + 0.39840;
 
-    p_p_lidar_sensor1<< 0.240, 0.235, 0.28540 + 0.03603;
+    p_p_Velodyne1<< 0.240, 0.235, 0.28540 + 0.03603;
 
-    p_p_lidar_sensor2 << -0.240, -0.235, 0.28540 + 0.03603;
-
+    p_p_Velodyne2 << -0.240, -0.235, 0.28540 + 0.03603;
+    
 }
 
 void attitude_estimator::EncoderSubscriberSetting()
@@ -155,8 +179,8 @@ void attitude_estimator::PublisherSetting()
 
 void attitude_estimator::EncoderCallbackFunc(const as5047Msg &mag_enc)
 {    
-    if(is_init == false)
-        is_init = true;
+    if(is_subscription == false)
+        is_subscription = true;
     // Encoder Data Acquisition
     for(int i = 0; i < num_joint;++i)
     {
@@ -211,7 +235,7 @@ void attitude_estimator::NormalVectorCalculation()
 
     // Average unit vector
     p_z_b /= num_joint;
-    p_z_p.normalize();
+    p_z_b.normalize();
 
 }
 
@@ -230,9 +254,8 @@ void attitude_estimator::RollPitchCalculation()
 void attitude_estimator::PlatformCenterCalculation()
 {
     // Grounded wheel position w.r.t platform center
-    double s = 0;
     MatrixXd p_wheel_ground = MatrixXd(3,num_joint);
-    Vector3d temp_vec;
+    Vector3d temp_vec = Vector3d(3);
     MatrixXd shift = MatrixXd(3,num_joint);
 
     shift<<0, 0, 0, 0,
@@ -242,20 +265,18 @@ void attitude_estimator::PlatformCenterCalculation()
     p_R_b = Rotation_x(roll_pitch(0))*Rotation_y(roll_pitch(1));
     b_R_p = p_R_b.transpose();
 
-    p_wheel_ground = p_wheel_center_pos + p_R_b * shift;
+    b_p_wheel_gnd_pos = b_R_p * p_wheel_center_pos + shift;
 
-    // Basefootprint Calculation w.r.t platform center     
+    // Initialize the current 
+    b_p_p.fill(0.0);
+
     for(int i = 0; i < num_joint; ++i)
-    {   
-        temp_vec.fill(0.0);
-        temp_vec = p_wheel_ground.col(i);
-        s += p_z_b.dot(temp_vec)/p_z_b.dot(p_z_p);
+    {
+        temp_vec = b_p_wheel_gnd_pos.col(i);
+        b_p_p -= temp_vec;
     }
-    s /= 4;
-    p_p_b = s * p_z_p;
 
-    // Platform center w.r.t Basefootprint
-    b_p_p = b_R_p * (-p_p_b); 
+    b_p_p /= num_joint;
 }
 
 void attitude_estimator::RelativeInfo()
@@ -265,12 +286,46 @@ void attitude_estimator::RelativeInfo()
     RollPitchCalculation();
     PlatformCenterCalculation();
 
-    b_p_base_arm = b_p_p + b_R_p * p_p_base_arm;
-    b_p_camera_sensor = b_p_p + b_R_p * p_p_camera_sensor;
-    b_p_lidar_sensor1 = b_p_p + b_R_p * p_p_lidar_sensor1;
-    b_p_lidar_sensor2 = b_p_p + b_R_p * p_p_lidar_sensor2;
-    //cout<<b_p_base_arm<<endl;
-    //cout<<endl;
+    odom_to_camera_odom = b_p_p + b_R_p * p_p_camera_sensor;
+    camera_pose_to_base_footprint = -p_p_camera_sensor + p_R_b * b_p_p;
+    base_footprint_to_base_link = b_p_p;
+    base_link_to_Velodyne1 = p_p_Velodyne1;
+    base_link_to_Velodyne2 = p_p_Velodyne2;
+
+    double phi;
+    double theta;
+
+    double p_qx_b;
+    double p_qy_b;
+    double p_qz_b;
+    double p_qw_b;
+    
+    double b_qx_p;
+    double b_qy_p;
+    double b_qz_p;
+    double b_qw_p;
+
+    phi = roll_pitch(0);
+    theta = roll_pitch(1);
+
+    p_qx_b = cos(-theta/2)*sin(-phi/2);
+    p_qy_b = sin(-theta/2)*cos(-phi/2);
+    p_qz_b = -sin(-theta/2)*sin(-phi/2);
+    p_qw_b = cos(-theta/2)*cos(-phi/2);
+
+    b_qx_p = cos(theta/2)*sin(phi/2);
+    b_qy_p = sin(theta/2)*cos(phi/2);
+    b_qz_p = sin(theta/2)*sin(phi/2);
+    b_qw_p = cos(theta/2)*cos(phi/2);
+
+    p_q_b.fill(0.0);
+    b_q_p.fill(0.0);
+
+    p_q_b << p_qx_b, p_qy_b, p_qz_b, p_qw_b;
+    b_q_p << b_qx_p, b_qy_p, b_qz_p, b_qw_p;
+    
+    cout<<b_q_p<<endl;
+    cout<<endl;
 }
 
 MatrixXd attitude_estimator::Rotation_x(double &phi)
