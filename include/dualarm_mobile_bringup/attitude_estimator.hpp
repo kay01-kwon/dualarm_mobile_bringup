@@ -45,8 +45,10 @@ class attitude_estimator{
     // Member functions
     void InitiateVariables();
     void EncoderSubscriberSetting();
+    void CameraQuaternionSubscriberSetting();
     void PublisherSetting();
     void EncoderCallbackFunc(const as5047Msg & mag_enc);
+    void CameraCallbackFunc(const Odometry & camera_quatMsg);
     void WheelPosCalculation();
     void NormalVectorCalculation();
     void RollPitchCalculation();
@@ -64,14 +66,17 @@ class attitude_estimator{
     // Translation info.
     Vector3d odom_to_camera_odom;
     Vector3d camera_pose_to_base_footprint;
+    Vector3d camera_pose2_to_base_footprint;
     Vector3d base_footprint_to_base_link;
     Vector3d base_link_to_Velodyne1;
     Vector3d base_link_to_Velodyne2;
     Vector3d base_link_to_base_arm;
+    Vector3d base_footprint_to_base_arm;
 
     // roll_pitch(0) : roll, roll_pitch(1) : pitch
     VectorXd roll_pitch = VectorXd(2);
 
+    VectorXd camera_quat = VectorXd(4);
     // p_q_b : quaternion from base(ground) to platform center ref frame
     // b_q_p : quaternion from platform center ref frame to base
     VectorXd p_q_b = VectorXd(4);
@@ -125,13 +130,14 @@ class attitude_estimator{
     Vector3d b_p_p;
 
     // p_p_target : target location w.r.t platform center ref frame
-    Vector3d p_p_camera_sensor;
+    VectorXd p_p_camera_sensor = VectorXd(3);
     Vector3d p_p_Velodyne1;
     Vector3d p_p_Velodyne2;
 
     ros::NodeHandle nh;
-    ros::Publisher BaseLinkPosePublisher;
+    ros::Publisher BaseArmPosePublisher;
     ros::Subscriber Encoder_subscriber;
+    ros::Subscriber Camera_subscriber;
 
 };
 
@@ -157,7 +163,7 @@ void attitude_estimator::InitiateVariables()
 
     p_z_p << 0,0,1;
 
-    base_link_to_base_arm<< 0, 0, 0.520;
+    base_link_to_base_arm<< 0, 0, 0.52680;
 
     p_p_camera_sensor<< 0.290 + 0.00595, 0, 0.08290 + 0.39840;
 
@@ -172,9 +178,14 @@ void attitude_estimator::EncoderSubscriberSetting()
     Encoder_subscriber = nh.subscribe("/magEnc",1,&attitude_estimator::EncoderCallbackFunc,this);
 }
 
+void attitude_estimator::CameraQuaternionSubscriberSetting()
+{
+    Camera_subscriber = nh.subscribe("/camera/odom/sample",1,&attitude_estimator::CameraCallbackFunc,this);
+}
+
 void attitude_estimator::PublisherSetting()
 {
-    BaseLinkPosePublisher = nh.advertise<Odometry>("/base_arm_pose",1);
+    BaseArmPosePublisher = nh.advertise<Odometry>("/base_arm_pose",1);
 }
 
 void attitude_estimator::EncoderCallbackFunc(const as5047Msg &mag_enc)
@@ -188,6 +199,28 @@ void attitude_estimator::EncoderCallbackFunc(const as5047Msg &mag_enc)
     }
 
     joint_angle_rotation = deg_to_rad*direction_sign*(joint_angle_curr - joint_angle_init);
+}
+
+void attitude_estimator::CameraCallbackFunc(const Odometry & camera_quatMsg)
+{
+    double qw, qx ,qy ,qz;
+    double roll, pitch, yaw;
+    qx = camera_quatMsg.pose.pose.orientation.x;
+    qy = camera_quatMsg.pose.pose.orientation.y;
+    qz = camera_quatMsg.pose.pose.orientation.z;
+    qw = camera_quatMsg.pose.pose.orientation.w;
+
+    roll = atan2(2*(qw*qx+qy*qz),1-2*(qx*qx + qy*qy));
+    pitch = asin(2*(qw*qy-qz*qx));
+
+    yaw = atan2(2*(qw*qz + qx*qy),1-2*(qy*qy+qz*qz));
+    
+    //cout<<roll*180/M_PI<<"\t"<<pitch*180/M_PI<<"\t"<<yaw*180/M_PI<<endl;
+
+    camera_quat(0) = -qx*cos(yaw/2) - qy*sin(yaw/2);
+    camera_quat(1) = -qy*cos(yaw/2) + qx*sin(yaw/2);
+    camera_quat(2) = -qz*cos(yaw/2) + qw*sin(yaw/2);
+    camera_quat(3) = qw*cos(yaw/2) + qz*sin(yaw/2);
 }
 
 void attitude_estimator::WheelPosCalculation()
@@ -224,9 +257,9 @@ void attitude_estimator::NormalVectorCalculation()
         v_temp = p_wheel_center_pos.col(k) - p_wheel_center_pos.col(i);
 
         w_temp = u_temp.cross(v_temp);
-        w.col(i) = w_temp/sqrt(w_temp.dot(w_temp));
+        w_temp = w_temp/sqrt(w_temp.dot(w_temp));
 
-        p_z_b += w.col(i);
+        p_z_b += w_temp;
 
         u_temp.fill(0.0);
         v_temp.fill(0.0);
@@ -243,9 +276,9 @@ void attitude_estimator::RollPitchCalculation()
 {
     // roll_pitch(0) : roll
     // roll_pitch(1) : pitch
-    roll_pitch(1) = asin(p_z_b(0));
+    roll_pitch(1) = -asin(p_z_b(0));
 
-    double Y = -p_z_b(1)/cos(roll_pitch(1));
+    double Y = p_z_b(1)/cos(roll_pitch(1));
     double Z = p_z_b(2)/cos(roll_pitch(1));
 
     roll_pitch(0) = atan2(Y,Z);
@@ -262,12 +295,14 @@ void attitude_estimator::PlatformCenterCalculation()
             0, 0, 0, 0,
             -wheel_radious, -wheel_radious, -wheel_radious, -wheel_radious;
 
-    p_R_b = Rotation_x(roll_pitch(0))*Rotation_y(roll_pitch(1));
+    double roll = -roll_pitch(0);
+    double pitch = -roll_pitch(1);
+
+    p_R_b = Rotation_x(roll)*Rotation_y(pitch);
     b_R_p = p_R_b.transpose();
 
     b_p_wheel_gnd_pos = b_R_p * p_wheel_center_pos + shift;
 
-    // Initialize the current 
     b_p_p.fill(0.0);
 
     for(int i = 0; i < num_joint; ++i)
@@ -287,10 +322,12 @@ void attitude_estimator::RelativeInfo()
     PlatformCenterCalculation();
 
     odom_to_camera_odom = b_p_p + b_R_p * p_p_camera_sensor;
-    camera_pose_to_base_footprint = -p_p_camera_sensor + p_R_b * b_p_p;
+    camera_pose_to_base_footprint = -p_p_camera_sensor - p_R_b * b_p_p;
+    camera_pose2_to_base_footprint = -b_R_p * p_p_camera_sensor - b_p_p;
     base_footprint_to_base_link = b_p_p;
     base_link_to_Velodyne1 = p_p_Velodyne1;
     base_link_to_Velodyne2 = p_p_Velodyne2;
+    base_footprint_to_base_arm = b_p_p + b_R_p * base_link_to_base_arm;
 
     double phi;
     double theta;
@@ -308,24 +345,22 @@ void attitude_estimator::RelativeInfo()
     phi = roll_pitch(0);
     theta = roll_pitch(1);
 
-    p_qx_b = cos(-theta/2)*sin(-phi/2);
-    p_qy_b = sin(-theta/2)*cos(-phi/2);
-    p_qz_b = -sin(-theta/2)*sin(-phi/2);
-    p_qw_b = cos(-theta/2)*cos(-phi/2);
+    p_qx_b = cos(theta/2)*sin(phi/2);
+    p_qy_b = sin(theta/2)*cos(phi/2);
+    p_qz_b = sin(theta/2)*sin(phi/2);
+    p_qw_b = cos(theta/2)*cos(phi/2);
 
-    b_qx_p = cos(theta/2)*sin(phi/2);
-    b_qy_p = sin(theta/2)*cos(phi/2);
-    b_qz_p = sin(theta/2)*sin(phi/2);
-    b_qw_p = cos(theta/2)*cos(phi/2);
+    b_qx_p = cos(-theta/2)*sin(-phi/2);
+    b_qy_p = sin(-theta/2)*cos(-phi/2);
+    b_qz_p = -sin(-theta/2)*sin(-phi/2);
+    b_qw_p = cos(-theta/2)*cos(-phi/2);
 
     p_q_b.fill(0.0);
     b_q_p.fill(0.0);
 
     p_q_b << p_qx_b, p_qy_b, p_qz_b, p_qw_b;
     b_q_p << b_qx_p, b_qy_p, b_qz_p, b_qw_p;
-    
-    cout<<b_q_p<<endl;
-    cout<<endl;
+
 }
 
 MatrixXd attitude_estimator::Rotation_x(double &phi)
