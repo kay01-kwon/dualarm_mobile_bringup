@@ -18,6 +18,7 @@ int main(int argc, char **argv)
   // Relative translation info
   Vector3d odom_to_camera_odom_;
   Vector3d camera_pose2_to_base_footprint_;
+  double height;
   Vector3d base_footprint_to_base_link_;
   Vector3d base_link_to_Velodyne1_;
   Vector3d base_link_to_Velodyne2_;
@@ -45,6 +46,7 @@ int main(int argc, char **argv)
     if(estimator.is_subscription == true) // If subscription occurs --> true!
     {
       camera_pose2_to_base_footprint_ = estimator.camera_pose2_to_base_footprint;
+      height = estimator.camera_pose_to_camera_pose2_height;
       base_footprint_to_base_link_ = estimator.base_footprint_to_base_link;
       base_link_to_Velodyne1_ = estimator.base_link_to_Velodyne1;
       base_link_to_Velodyne2_ = estimator.base_link_to_Velodyne2;
@@ -53,14 +55,6 @@ int main(int argc, char **argv)
       b_q_p_ = estimator.b_q_p;
       
       camera_quat_ = estimator.camera_quat;
-
-      if(odom_init == false) // Reference frame (Odom-camera_odom_frame) initialization
-      {
-        odom_to_camera_odom_ = estimator.odom_to_camera_odom;
-        p_q_b0_ = estimator.p_q_b;
-
-        odom_init = true;
-      }
 
       ros::Time currentTime = ros::Time::now();
 
@@ -75,7 +69,7 @@ int main(int argc, char **argv)
       broadcaster.sendTransform(
         tf::StampedTransform(
     	    tf::Transform(tf::Quaternion(camera_quat_(0),camera_quat_(1),camera_quat_(2),camera_quat_(3)),
-          tf::Vector3(0,0,0)),
+          tf::Vector3(0,0,height)),
     	    currentTime,"camera_pose_frame", "camera_pose_frame2"
         )
       );
