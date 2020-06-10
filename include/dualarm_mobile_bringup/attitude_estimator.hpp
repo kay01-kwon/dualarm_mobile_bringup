@@ -65,7 +65,9 @@ class attitude_estimator{
     
     // Translation info.
     Vector3d odom_to_camera_odom;
+    
     Vector3d camera_pose_to_base_footprint;
+    double camera_pose_to_camera_pose2_height;
     Vector3d camera_pose2_to_base_footprint;
     Vector3d base_footprint_to_base_link;
     Vector3d base_link_to_Velodyne1;
@@ -201,22 +203,24 @@ void attitude_estimator::EncoderCallbackFunc(const as5047Msg &mag_enc)
     joint_angle_rotation = deg_to_rad*direction_sign*(joint_angle_curr - joint_angle_init);
 }
 
-void attitude_estimator::CameraCallbackFunc(const Odometry & camera_quatMsg)
+void attitude_estimator::CameraCallbackFunc(const Odometry & cameraMsg)
 {
     double qw, qx ,qy ,qz;
     double roll, pitch, yaw;
-    qx = camera_quatMsg.pose.pose.orientation.x;
-    qy = camera_quatMsg.pose.pose.orientation.y;
-    qz = camera_quatMsg.pose.pose.orientation.z;
-    qw = camera_quatMsg.pose.pose.orientation.w;
+    
+    qx = cameraMsg.pose.pose.orientation.x;
+    qy = cameraMsg.pose.pose.orientation.y;
+    qz = cameraMsg.pose.pose.orientation.z;
+    qw = cameraMsg.pose.pose.orientation.w;
+
+    camera_pose_to_camera_pose2_height = cameraMsg.pose.pose.position.z;
+    camera_pose_to_camera_pose2_height = - camera_pose_to_camera_pose2_height;
 
     roll = atan2(2*(qw*qx+qy*qz),1-2*(qx*qx + qy*qy));
     pitch = asin(2*(qw*qy-qz*qx));
 
     yaw = atan2(2*(qw*qz + qx*qy),1-2*(qy*qy+qz*qz));
     
-    //cout<<roll*180/M_PI<<"\t"<<pitch*180/M_PI<<"\t"<<yaw*180/M_PI<<endl;
-
     camera_quat(0) = -qx*cos(yaw/2) - qy*sin(yaw/2);
     camera_quat(1) = -qy*cos(yaw/2) + qx*sin(yaw/2);
     camera_quat(2) = -qz*cos(yaw/2) + qw*sin(yaw/2);
@@ -360,6 +364,8 @@ void attitude_estimator::RelativeInfo()
 
     p_q_b << p_qx_b, p_qy_b, p_qz_b, p_qw_b;
     b_q_p << b_qx_p, b_qy_p, b_qz_p, b_qw_p;
+    //cout<<roll_pitch*180/M_PI<<endl;
+    //cout<<endl;
 
 }
 
