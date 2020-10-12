@@ -7,8 +7,6 @@
     </include>
 
 <!--
-    <node name="wheel_odometer" pkg="vehicle_control" type="wheel_odometry"/>  
-    
     <include file="$(find dualarm_mobile_bringup)/launch/rs_t265.launch">
         <arg name="unite_imu_method" value="copy" />
     </include>
