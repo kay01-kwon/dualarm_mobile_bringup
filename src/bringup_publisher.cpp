@@ -1,7 +1,8 @@
 #include <dualarm_mobile_bringup/publisher.h>
-#include <dualarm_mobile_bringup/attitude_estimator.hpp>
+
 int main(int argc, char **argv)
 {
+
   ros::init(argc, argv, "bring_publisher");
 
   ros::NodeHandle nh;
@@ -63,23 +64,23 @@ int main(int argc, char **argv)
 
     broadcaster.sendTransform(
     tf::StampedTransform(
-    	tf::Transform(tf::Quaternion(tf::createQuaternionFromRPY(0.0, 0.0, 0.0)), tf::Vector3(0.42, 0.0, 0.09)),
-    	currentTime,"base_link", "base_sonar_front"));
+      tf::Transform(tf::Quaternion(tf::createQuaternionFromRPY(0.0,0.0,0.0)), tf::Vector3(0.42,0.0,0.09)),
+      currentTime,"base_link","base_sonar_front"));
 
     broadcaster.sendTransform(
     tf::StampedTransform(
-    	tf::Transform(tf::Quaternion(tf::createQuaternionFromRPY(0.0, 0.0, PI)), tf::Vector3(-0.41, 0.0, 0.09)),
-    	currentTime,"base_link", "base_sonar_rear"));
+      tf::Transform(tf::Quaternion(tf::createQuaternionFromRPY(0.0,0.0,PI)), tf::Vector3(-0.41,0.0,0.09)),
+      currentTime,"base_link","base_sonar_rear"));
 
     broadcaster.sendTransform(
     tf::StampedTransform(
-    	tf::Transform(tf::Quaternion(tf::createQuaternionFromRPY(0.0, 0.0, PI/2)), tf::Vector3(0.0, 0.3, 0.09)),
-    	currentTime,"base_link", "base_sonar_left"));
+      tf::Transform(tf::Quaternion(tf::createQuaternionFromRPY(0.0,0.0,PI/2)), tf::Vector3(0.0,0.3,0.09)),
+      currentTime,"base_link","base_sonar_left"));
 
     broadcaster.sendTransform(
     tf::StampedTransform(
-    	tf::Transform(tf::Quaternion(tf::createQuaternionFromRPY(0.0, 0.0, -PI/2)), tf::Vector3(0.0, -0.3, 0.09)),
-    	currentTime,"base_link", "base_sonar_right"));
+      tf::Transform(tf::Quaternion(tf::createQuaternionFromRPY(0.0,0.0,-PI/2)), tf::Vector3(0.0,-0.3,0.09)),
+      currentTime,"base_link","base_sonar_right"));
 
     ros::spinOnce();
     loop_rate.sleep();

@@ -15,7 +15,7 @@ int main(int argc, char **argv)
 
   ros::Rate loop_rate(rate);
 
-  ros::Publisher odom_pub = nh.advertise<nav_msgs::Odometry>(topic_name, 1);
+  ros::Publisher odom_pub = nh.advertise<nav_msgs::Odometry>(topic_name, 10);
 
   listener.waitForTransform("odom", "base_footprint", ros::Time::now(), ros::Duration(3.0));
   while (ros::ok())
@@ -26,7 +26,7 @@ int main(int argc, char **argv)
       currentTime = ros::Time::now();
       listener.waitForTransform("odom", "base_footprint", currentTime, ros::Duration(3.0));
       listener.lookupTransform("odom", "base_footprint", currentTime, transform);
-      listener.lookupTwist("base_footprint", "odom", currentTime, ros::Duration(0.02), odom.twist.twist);
+      listener.lookupTwist("base_footprint", "odom", currentTime, ros::Duration(0.2), odom.twist.twist);
     }
     catch (tf::TransformException ex)
     {
@@ -38,6 +38,7 @@ int main(int argc, char **argv)
     odom.header.frame_id = "odom";
     odom.child_frame_id = "base_footprint";
 		
+    odom.pose.pose.position.z = 0.0;
     odom.pose.covariance[0] = 0.01;
     odom.pose.covariance[7] = 0.01;
     odom.pose.covariance[14] = 0.01;

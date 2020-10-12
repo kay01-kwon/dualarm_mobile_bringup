@@ -36,15 +36,18 @@ int main(int argc, char **argv)
 
   tf::TransformBroadcaster broadcaster;
 
-  rate = 40;
+  rate = 200;
 
   ros::Rate loop_rate(rate);
 
   while(ros::ok())
   {
     estimator.RelativeInfo();
-    if(estimator.is_subscription == true) // If subscription occurs --> true!
-    {
+    ROS_INFO("start");
+   if(estimator.is_subscription == true) // If subscription takes place -->ready to broadcast
+   {
+      ROS_INFO("Message recieved");
+      odom_to_camera_odom_ = estimator.odom_to_camera_odom;
       camera_pose2_to_base_footprint_ = estimator.camera_pose2_to_base_footprint;
       height = estimator.camera_pose_to_camera_pose2_height;
       base_footprint_to_base_link_ = estimator.base_footprint_to_base_link;
@@ -144,7 +147,7 @@ int main(int argc, char **argv)
         )
       );
 
-    }
+   }
       ros::spinOnce();
       loop_rate.sleep();
 
