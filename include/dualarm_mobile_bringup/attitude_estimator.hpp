@@ -6,7 +6,7 @@
 #include <eigen3/Eigen/Core>
 #include <eigen3/Eigen/Dense>
 
-#include <vehicle_control/as5047Msg.h>
+#include <dualarm_sensor_msgs/as5047Msg.h>
 
 #include <geometry_msgs/Twist.h>
 #include <nav_msgs/Odometry.h>
@@ -17,7 +17,7 @@
 
 #define _USE_MATH_DEFINES
 
-using vehicle_control::as5047Msg;
+using dualarm_sensor_msgs::as5047Msg;
 using nav_msgs::Odometry;
 
 using Eigen::MatrixXd;
@@ -98,7 +98,7 @@ class attitude_estimator{
     const double wheel_radious = 0.076;
 
     // data conversion info
-    const double bit_to_deg = (double) 360.0/16363.0;
+    const double bit_to_deg = (double) 360.0/16383.0;
     const double deg_to_rad = (double) M_PI/180.0;
 
     // Joints position
@@ -154,8 +154,8 @@ void attitude_estimator::InitiateVariables()
                     0,0,-1,0,
                     0,0,0,1;
 
-    joint_angle_init <<306.2234, 80.5273,
-                    258.8940, 107.3574;
+    joint_angle_init <<5517, 8001,
+                    8512, 4802;
     
     link_wheel_center_pos << -l_1, -l_1, l_1, l_1,
                             0, 0, 0, 0,
@@ -198,9 +198,10 @@ void attitude_estimator::EncoderCallbackFunc(const as5047Msg &mag_enc)
     for(int i = 0; i < num_joint;++i)
     {
         joint_angle_curr(i) = (double) mag_enc.mag_enc[i] * bit_to_deg;
+
     }
 
-    joint_angle_rotation = deg_to_rad*direction_sign*(joint_angle_curr - joint_angle_init);
+    joint_angle_rotation = deg_to_rad*direction_sign*(joint_angle_curr - joint_angle_init*bit_to_deg);
 }
 
 void attitude_estimator::CameraCallbackFunc(const Odometry & cameraMsg)
